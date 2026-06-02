@@ -1,0 +1,7 @@
+# Pasa el header Authorization a PHP (necesario en Apache/Hostinger para los Bearer tokens)
+RewriteEngine On
+RewriteCond %{HTTP:Authorization} ^(.*)
+RewriteRule ^(.*)$ - [E=HTTP_AUTHORIZATION:%1]
+
+# CGI/FastCGI passthrough alternativo
+SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1

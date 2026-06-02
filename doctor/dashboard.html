@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PLADIEX Expediente — Panel Médico</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/config.js"></script>
+  <link rel="stylesheet" href="../css/app.css" />
+</head>
+
+<body class="dashboard-page">
+  <header class="topbar">
+    <span class="topbar-logo-text">PLADIEX <small>Expediente</small></span>
+    <div class="topbar-user">
+      <div class="user-avatar" id="user-avatar">D</div>
+      <div class="topbar-user-info">
+        <span class="topbar-email" id="user-email">…</span>
+        <span class="topbar-role">Médico</span>
+      </div>
+      <button class="btn-logout" id="logout-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Cerrar sesión
+      </button>
+    </div>
+  </header>
+
+  <div class="page-banner">
+    <div class="page-banner-inner">
+      <div class="page-banner-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="1.5" width="40"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/></svg>
+      </div>
+      <div>
+        <p class="page-banner-label">Bienvenido</p>
+        <h1 class="page-banner-title" id="banner-name">Panel Médico</h1>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-wrapper">
+    <div class="page-main-card">
+      <div class="section-header">
+        <h2 class="section-title">Mis pacientes asignados</h2>
+        <p class="section-desc">Abre el <strong>Asistente Clínico</strong> (botón inferior derecho) y escribe el ID de un paciente para consultar su expediente. Haz clic en un ID para copiarlo.</p>
+      </div>
+
+      <div class="info-banner">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div>Ejemplo: <em>"Muéstrame los estudios de sangre del paciente PAC-00001"</em>. El asistente solo puede acceder a los expedientes de los pacientes que te están asignados.</div>
+      </div>
+
+      <div class="library-empty" id="patients-empty" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#99D8DD" stroke-width="1.5" width="56"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        <p>Aún no tienes pacientes asignados.</p>
+      </div>
+      <div class="patient-list" id="patient-list"></div>
+    </div>
+  </div>
+
+  <script>
+    const sb = supabase.createClient(window.SUPA.URL, window.SUPA.ANON);
+    const $ = id => document.getElementById(id);
+    let uid = null;
+
+    // El widget leerá el token fresco desde aquí
+    window.PLX_GET_TOKEN = async () => {
+      const { data } = await sb.auth.getSession();
+      return data.session?.access_token || null;
+    };
+
+    (async () => {
+      const { data } = await sb.auth.getSession();
+      if (!data.session) { window.location.href = 'index.html'; return; }
+      uid = data.session.user.id;
+      $('user-email').textContent = data.session.user.email;
+      $('user-avatar').textContent = (data.session.user.email[0] || 'D').toUpperCase();
+
+      const { data: doc } = await sb.from('doctors').select('full_name').eq('user_id', uid).maybeSingle();
+      if (!doc) { await sb.auth.signOut(); window.location.href = 'index.html'; return; }
+      if (doc.full_name) $('banner-name').textContent = doc.full_name;
+
+      loadPatients();
+      loadWidget();
+    })();
+
+    $('logout-btn').addEventListener('click', async () => { await sb.auth.signOut(); window.location.href = 'index.html'; });
+
+    async function loadPatients() {
+      const { data: rows } = await sb.from('doctor_patient')
+        .select('patient_id, patients(patient_code, full_name, email)')
+        .eq('doctor_user_id', uid);
+
+      const list = $('patient-list'), empty = $('patients-empty');
+      const patients = (rows || []).map(r => r.patients).filter(Boolean);
+      if (!patients.length) { empty.style.display = 'flex'; list.innerHTML = ''; return; }
+      empty.style.display = 'none';
+
+      list.innerHTML = patients.map(p => {
+        const initial = (p.full_name || p.patient_code || '?')[0].toUpperCase();
+        return `<div class="patient-card">
+          <div class="patient-avatar">${esc(initial)}</div>
+          <div class="patient-info">
+            <div class="patient-name">${esc(p.full_name || 'Paciente')}</div>
+            <div class="patient-sub">${esc(p.email || '')}</div>
+          </div>
+          <button class="patient-code" title="Copiar ID" data-code="${esc(p.patient_code)}">${esc(p.patient_code)}</button>
+        </div>`;
+      }).join('');
+
+      document.querySelectorAll('.patient-code').forEach(b => b.addEventListener('click', () => {
+        navigator.clipboard?.writeText(b.dataset.code);
+        const orig = b.textContent; b.textContent = '¡Copiado!';
+        setTimeout(() => b.textContent = orig, 1100);
+      }));
+    }
+
+    // Carga el widget clínico (autenticado vía window.PLX_GET_TOKEN)
+    function loadWidget() {
+      const s = document.createElement('script');
+      s.src = '../chatbot/widget.js';
+      s.dataset.api = '/api/chat.php';
+      document.body.appendChild(s);
+    }
+
+    function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  </script>
+</body>
+</html>

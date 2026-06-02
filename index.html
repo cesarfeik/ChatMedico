@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PLADIEX Expediente Médico</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(135deg, #01405c 0%, #01587A 45%, #1a8fa8 100%);
+      min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px;
+    }
+    .card {
+      background: #fff; border-radius: 22px; padding: 48px 40px; max-width: 460px; width: 100%;
+      text-align: center; box-shadow: 0 28px 70px rgba(0,0,0,0.35);
+    }
+    .logo { font-size: 28px; font-weight: 700; color: #01587A; letter-spacing: 1px; }
+    .logo small { display: block; font-size: 13px; font-weight: 500; color: #5CB3C1; letter-spacing: 2px; margin-top: 2px; }
+    p.sub { color: #6b8fa0; font-size: 14px; line-height: 1.6; margin: 14px 0 28px; }
+    .options { display: flex; flex-direction: column; gap: 12px; }
+    .opt {
+      display: flex; align-items: center; gap: 14px; text-decoration: none;
+      padding: 16px 20px; border: 1.5px solid #e0eff2; border-radius: 14px; transition: all 0.18s;
+    }
+    .opt:hover { border-color: #5CB3C1; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(1,88,122,0.12); }
+    .opt-icon { width: 44px; height: 44px; border-radius: 12px; background: #edf8fa; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .opt-text { text-align: left; flex: 1; }
+    .opt-title { font-size: 15px; font-weight: 600; color: #1a2b35; }
+    .opt-sub { font-size: 12px; color: #8fb5c0; margin-top: 1px; }
+    .opt-arrow { color: #b0cdd4; font-size: 20px; }
+  </style>
+</head>
+
+<body>
+  <div class="card">
+    <div class="logo">PLADIEX<small>EXPEDIENTE MÉDICO</small></div>
+    <p class="sub">Plataforma segura de expedientes clínicos con asistente de IA. Selecciona cómo deseas ingresar.</p>
+    <div class="options">
+      <a href="doctor/" class="opt">
+        <span class="opt-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#01587A" stroke-width="2" width="22"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/></svg></span>
+        <span class="opt-text"><span class="opt-title">Soy médico</span><span class="opt-sub">Consultar expedientes de mis pacientes</span></span>
+        <span class="opt-arrow">›</span>
+      </a>
+      <a href="patient/" class="opt">
+        <span class="opt-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#01587A" stroke-width="2" width="22"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+        <span class="opt-text"><span class="opt-title">Soy paciente</span><span class="opt-sub">Subir y gestionar mi historial clínico</span></span>
+        <span class="opt-arrow">›</span>
+      </a>
+    </div>
+  </div>
+</body>
+</html>

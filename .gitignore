@@ -1,0 +1,11 @@
+# Config local con secretos (si lo creas para XAMPP)
+config.local.php
+
+# Dependencias
+/vendor/
+node_modules/
+
+# Sistema
+.DS_Store
+Thumbs.db
+*.log

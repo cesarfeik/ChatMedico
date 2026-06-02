@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PLADIEX Expediente — Acceso Paciente</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/config.js"></script>
+  <link rel="stylesheet" href="../css/app.css" />
+</head>
+
+<body class="login-page">
+  <div class="login-bg"></div>
+
+  <div class="login-wrapper">
+    <div class="login-card">
+      <div class="login-card-header">
+        <div class="login-card-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" width="30">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+          </svg>
+        </div>
+        <div class="login-card-title">Portal del Paciente</div>
+        <div class="login-card-subtitle">Sube y gestiona tu historial clínico</div>
+      </div>
+
+      <div class="login-card-body">
+        <div class="alert alert-error" id="error-msg" style="display:none"></div>
+        <div class="alert alert-success" id="ok-msg" style="display:none"></div>
+
+        <!-- LOGIN -->
+        <form id="login-form">
+          <div class="field-group">
+            <label class="field-label">Correo electrónico</label>
+            <div class="field-icon-wrap">
+              <span class="field-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="17"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="m22 7-10 7L2 7"/></svg>
+              </span>
+              <input type="email" id="l-email" class="field-input" placeholder="tucorreo@ejemplo.com" required autocomplete="email" />
+            </div>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Contraseña</label>
+            <div class="field-icon-wrap password-wrapper">
+              <span class="field-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="17"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </span>
+              <input type="password" id="l-password" class="field-input" placeholder="••••••••" required autocomplete="current-password" />
+            </div>
+          </div>
+          <button type="submit" class="btn-primary" id="l-btn">
+            <span id="l-btn-text">Iniciar sesión</span>
+            <span id="l-spinner" class="spinner" style="display:none"></span>
+          </button>
+          <button type="button" class="btn-link" id="show-register">¿No tienes cuenta? Regístrate aquí</button>
+        </form>
+
+        <!-- REGISTRO -->
+        <form id="register-form" style="display:none">
+          <div class="field-group">
+            <label class="field-label">Nombre completo</label>
+            <input type="text" id="r-name" class="field-input" placeholder="Tu nombre" required />
+          </div>
+          <div class="field-group">
+            <label class="field-label">Correo electrónico</label>
+            <input type="email" id="r-email" class="field-input" placeholder="tucorreo@ejemplo.com" required autocomplete="email" />
+          </div>
+          <div class="field-group">
+            <label class="field-label">Contraseña</label>
+            <input type="password" id="r-password" class="field-input" placeholder="Mínimo 6 caracteres" required minlength="6" autocomplete="new-password" />
+          </div>
+          <div class="field-group">
+            <label class="field-label">Tu médico</label>
+            <select id="r-doctor" class="field-input" required>
+              <option value="">Selecciona a tu médico…</option>
+            </select>
+          </div>
+          <button type="submit" class="btn-primary" id="r-btn">
+            <span id="r-btn-text">Crear cuenta</span>
+            <span id="r-spinner" class="spinner" style="display:none"></span>
+          </button>
+          <button type="button" class="btn-link" id="show-login">¿Ya tienes cuenta? Inicia sesión</button>
+        </form>
+      </div>
+    </div>
+    <p class="login-note">Tus datos clínicos están protegidos y solo son visibles para tu médico asignado.</p>
+  </div>
+
+  <script>
+    const sb = supabase.createClient(window.SUPA.URL, window.SUPA.ANON);
+    const $ = id => document.getElementById(id);
+    const showErr = m => { $('error-msg').textContent = m; $('error-msg').style.display = 'block'; $('ok-msg').style.display = 'none'; };
+    const showOk  = m => { $('ok-msg').textContent = m; $('ok-msg').style.display = 'block'; $('error-msg').style.display = 'none'; };
+
+    // Si ya hay sesión, ir al perfil
+    (async () => {
+      const { data: { session } } = await sb.auth.getSession();
+      if (session) window.location.href = 'profile.html';
+    })();
+
+    // Alternar login / registro
+    $('show-register').addEventListener('click', () => {
+      $('login-form').style.display = 'none'; $('register-form').style.display = 'block';
+      $('error-msg').style.display = 'none'; loadDoctors();
+    });
+    $('show-login').addEventListener('click', () => {
+      $('register-form').style.display = 'none'; $('login-form').style.display = 'block';
+      $('error-msg').style.display = 'none';
+    });
+
+    async function loadDoctors() {
+      const sel = $('r-doctor');
+      if (sel.options.length > 1) return;
+      const { data } = await sb.from('doctors').select('user_id, full_name, specialty');
+      (data || []).forEach(d => {
+        const o = document.createElement('option');
+        o.value = d.user_id;
+        o.textContent = d.full_name + (d.specialty ? ` — ${d.specialty}` : '');
+        sel.appendChild(o);
+      });
+    }
+
+    // LOGIN
+    $('login-form').addEventListener('submit', async e => {
+      e.preventDefault();
+      $('l-btn-text').style.display = 'none'; $('l-spinner').style.display = 'inline-block'; $('l-btn').disabled = true;
+      const { error } = await sb.auth.signInWithPassword({ email: $('l-email').value.trim(), password: $('l-password').value });
+      $('l-btn-text').style.display = 'inline'; $('l-spinner').style.display = 'none'; $('l-btn').disabled = false;
+      if (error) { showErr('Credenciales incorrectas. Verifica tu correo y contraseña.'); return; }
+      window.location.href = 'profile.html';
+    });
+
+    // REGISTRO
+    $('register-form').addEventListener('submit', async e => {
+      e.preventDefault();
+      const name = $('r-name').value.trim();
+      const email = $('r-email').value.trim();
+      const password = $('r-password').value;
+      const doctorId = $('r-doctor').value;
+      if (!doctorId) { showErr('Selecciona a tu médico.'); return; }
+
+      $('r-btn-text').style.display = 'none'; $('r-spinner').style.display = 'inline-block'; $('r-btn').disabled = true;
+      try {
+        const { data: signup, error: signErr } = await sb.auth.signUp({
+          email, password, options: { data: { full_name: name, role: 'patient' } }
+        });
+        if (signErr) throw new Error(signErr.message);
+
+        // Necesitamos sesión activa para crear los registros (RLS).
+        if (!signup.session) {
+          showOk('Cuenta creada. Revisa tu correo para confirmarla y luego inicia sesión.');
+          return;
+        }
+
+        // Crear paciente (patient_code se autogenera)
+        const { data: pat, error: pErr } = await sb.from('patients')
+          .insert({ user_id: signup.user.id, full_name: name, email })
+          .select('id, patient_code').single();
+        if (pErr) throw new Error(pErr.message);
+
+        await sb.from('profiles').insert({ user_id: signup.user.id, role: 'patient', full_name: name, email });
+        await sb.from('doctor_patient').insert({ doctor_user_id: doctorId, patient_id: pat.id });
+
+        window.location.href = 'profile.html';
+      } catch (err) {
+        showErr('No se pudo crear la cuenta: ' + err.message);
+      } finally {
+        $('r-btn-text').style.display = 'inline'; $('r-spinner').style.display = 'none'; $('r-btn').disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
