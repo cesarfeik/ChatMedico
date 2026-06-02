@@ -43,37 +43,27 @@ function b64urlEncode(string $data): string {
 }
 
 /**
- * Verifica y decodifica el JWT de Supabase.
- * Si SUPABASE_JWT_SECRET está configurado, valida la firma HS256 (recomendado).
- * Si no, hace una validación básica (exp + iss) como fallback de desarrollo.
- * Devuelve el payload (array) o null si es inválido.
+ * Valida el token preguntándole a Supabase quién es el usuario (introspección).
+ * Es 100% confiable sin importar el algoritmo de firma del proyecto y no requiere
+ * SUPABASE_JWT_SECRET. Devuelve ['sub'=>id, 'email'=>..., 'raw'=>user] o null.
  */
-function verifyJwt(?string $token): ?array {
+function authUser(): ?array {
+    $token = getBearerToken();
     if (!$token) return null;
-    $parts = explode('.', $token);
-    if (count($parts) !== 3) return null;
-    [$h, $p, $s] = $parts;
-
-    $payload = json_decode(b64urlDecode($p), true);
-    if (empty($payload)) return null;
-    if (!empty($payload['exp']) && $payload['exp'] < time()) return null;
-
-    if (SUPABASE_JWT_SECRET !== '') {
-        $expected = b64urlEncode(hash_hmac('sha256', $h . '.' . $p, SUPABASE_JWT_SECRET, true));
-        if (!hash_equals($expected, $s)) return null;
-    } else {
-        // Fallback sin firma: al menos validar el emisor
-        $expectedIssuer = rtrim(SUPABASE_URL, '/') . '/auth/v1';
-        if (!empty($payload['iss']) && $payload['iss'] !== $expectedIssuer) return null;
-    }
-    return $payload;
+    $res = httpRequest('GET', rtrim(SUPABASE_URL, '/') . '/auth/v1/user', [
+        'apikey'        => SUPABASE_ANON_KEY,
+        'Authorization' => 'Bearer ' . $token,
+    ]);
+    if ($res['code'] !== 200 || empty($res['json']['id'])) return null;
+    $u = $res['json'];
+    return ['sub' => $u['id'], 'email' => $u['email'] ?? '', 'raw' => $u];
 }
 
-/** Exige un usuario autenticado; devuelve el payload del JWT o corta con 401. */
+/** Exige un usuario autenticado; devuelve sus datos o corta con 401. */
 function requireAuth(): array {
-    $payload = verifyJwt(getBearerToken());
-    if (!$payload || empty($payload['sub'])) jsonError('No autorizado', 401);
-    return $payload;
+    $u = authUser();
+    if (!$u) jsonError('No autorizado', 401);
+    return $u;
 }
 
 // ─── HTTP genérico ─────────────────────────────────────────────────────────────
@@ -153,7 +143,7 @@ function openaiVisionOcr(string $imageBytes, string $mime): string {
 
 // ─── Pinecone ────────────────────────────────────────────────────────────────
 function pineconeUpsert(array $vectors): bool {
-    $r = httpPostJson(PINECONE_INDEX_HOST . '/vectors/upsert',
+    $r = httpPostJson(rtrim(PINECONE_INDEX_HOST, '/') . '/vectors/upsert',
         ['Api-Key' => PINECONE_API_KEY],
         ['vectors' => $vectors, 'namespace' => PINECONE_NAMESPACE]);
     return isset($r['upsertedCount']);
@@ -161,7 +151,7 @@ function pineconeUpsert(array $vectors): bool {
 
 /** Consulta filtrada por patient_id. Devuelve matches con metadata. */
 function pineconeQueryForPatient(array $vector, string $patientId, int $topK): array {
-    $r = httpPostJson(PINECONE_INDEX_HOST . '/query',
+    $r = httpPostJson(rtrim(PINECONE_INDEX_HOST, '/') . '/query',
         ['Api-Key' => PINECONE_API_KEY],
         [
             'vector'          => $vector,
@@ -174,7 +164,7 @@ function pineconeQueryForPatient(array $vector, string $patientId, int $topK): a
 }
 
 function pineconeDelete(array $ids): bool {
-    $r = httpRequest('POST', PINECONE_INDEX_HOST . '/vectors/delete',
+    $r = httpRequest('POST', rtrim(PINECONE_INDEX_HOST, '/') . '/vectors/delete',
         ['Api-Key' => PINECONE_API_KEY, 'Content-Type' => 'application/json'],
         ['ids' => $ids, 'namespace' => PINECONE_NAMESPACE]);
     return $r['code'] < 400;

@@ -1,6 +1,11 @@
 # Config local con secretos (si lo creas para XAMPP)
 config.local.php
 
+# Variables de entorno (secretos) — NUNCA subir a git
+.env
+.env.*
+!.env.example
+
 # Dependencias
 /vendor/
 node_modules/
