@@ -76,6 +76,18 @@ alter table patients          enable row level security;
 alter table doctor_patient     enable row level security;
 alter table medical_documents enable row level security;
 
+-- Funciones auxiliares SECURITY DEFINER: evitan recursión entre políticas
+-- (patients ↔ doctor_patient). Corren como owner → ignoran RLS internamente.
+create or replace function owns_patient(pid uuid) returns boolean
+  language sql security definer stable set search_path = public as $$
+  select exists (select 1 from patients p where p.id = pid and p.user_id = auth.uid());
+$$;
+
+create or replace function treats_patient(pid uuid) returns boolean
+  language sql security definer stable set search_path = public as $$
+  select exists (select 1 from doctor_patient dp where dp.patient_id = pid and dp.doctor_user_id = auth.uid());
+$$;
+
 -- profiles: cada quien ve/edita su propio perfil
 create policy "perfil propio (select)" on profiles
   for select using (auth.uid() = user_id);
@@ -102,35 +114,21 @@ create policy "paciente propio (update)" on patients
   for update using (auth.uid() = user_id);
 -- el doctor puede leer los datos de los pacientes que tiene asignados
 create policy "doctor ve pacientes asignados" on patients
-  for select using (
-    exists (select 1 from doctor_patient dp where dp.patient_id = patients.id and dp.doctor_user_id = auth.uid())
-  );
+  for select using (treats_patient(id));
 
 -- doctor_patient: el paciente crea su asignación; el doctor ve sus asignaciones
 create policy "paciente crea asignacion" on doctor_patient
-  for insert with check (
-    exists (select 1 from patients p where p.id = patient_id and p.user_id = auth.uid())
-  );
+  for insert with check (owns_patient(patient_id));
 create policy "ver asignacion propia" on doctor_patient
-  for select using (
-    auth.uid() = doctor_user_id
-    or exists (select 1 from patients p where p.id = patient_id and p.user_id = auth.uid())
-  );
+  for select using (auth.uid() = doctor_user_id or owns_patient(patient_id));
 
 -- medical_documents: el paciente gestiona los suyos; el doctor lee los de pacientes asignados
 create policy "paciente gestiona sus docs (select)" on medical_documents
-  for select using (
-    exists (select 1 from patients p where p.id = patient_id and p.user_id = auth.uid())
-    or exists (select 1 from doctor_patient dp where dp.patient_id = medical_documents.patient_id and dp.doctor_user_id = auth.uid())
-  );
+  for select using (owns_patient(patient_id) or treats_patient(patient_id));
 create policy "paciente inserta sus docs" on medical_documents
-  for insert with check (
-    exists (select 1 from patients p where p.id = patient_id and p.user_id = auth.uid())
-  );
+  for insert with check (owns_patient(patient_id));
 create policy "paciente borra sus docs" on medical_documents
-  for delete using (
-    exists (select 1 from patients p where p.id = patient_id and p.user_id = auth.uid())
-  );
+  for delete using (owns_patient(patient_id));
 
 -- ============================================================================
 -- STORAGE — bucket privado "expedientes"
@@ -143,30 +141,15 @@ on conflict (id) do nothing;
 -- (El servidor usa la service role key para leer/firmar en nombre del doctor.)
 create policy "paciente sube a su carpeta" on storage.objects
   for insert with check (
-    bucket_id = 'expedientes'
-    and exists (
-      select 1 from patients p
-      where p.user_id = auth.uid()
-        and (storage.foldername(name))[1] = p.id::text
-    )
+    bucket_id = 'expedientes' and owns_patient(((storage.foldername(name))[1])::uuid)
   );
 create policy "paciente lee su carpeta" on storage.objects
   for select using (
-    bucket_id = 'expedientes'
-    and exists (
-      select 1 from patients p
-      where p.user_id = auth.uid()
-        and (storage.foldername(name))[1] = p.id::text
-    )
+    bucket_id = 'expedientes' and owns_patient(((storage.foldername(name))[1])::uuid)
   );
 create policy "paciente borra de su carpeta" on storage.objects
   for delete using (
-    bucket_id = 'expedientes'
-    and exists (
-      select 1 from patients p
-      where p.user_id = auth.uid()
-        and (storage.foldername(name))[1] = p.id::text
-    )
+    bucket_id = 'expedientes' and owns_patient(((storage.foldername(name))[1])::uuid)
   );
 
 -- ============================================================================
